@@ -1,0 +1,9 @@
+<configuration>
+    <property name="log_file" value="${APP_LOG:-./logs/gypsy_api.log}"/>
+
+    <include resource="commonLogback.xml"/>
+
+    <root level="debug">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>

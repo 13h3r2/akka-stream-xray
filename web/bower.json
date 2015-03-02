@@ -1,0 +1,23 @@
+{
+  "name": "gypsy",
+  "version": "0.0.1",
+  "authors": [
+    "Alexey Romanchuk <al.romanchuk@2Gis.ru>"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "jquery": "~2.1.1",
+    "bootstrap": "~3.3.1",
+    "handlebars": "~2.0.0",
+    "lodash": "~3.3.0",
+    "dagre-d3": "~0.4.2"
+  }
+}

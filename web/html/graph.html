@@ -1,0 +1,129 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!--<link type="text/css" rel="stylesheet" href="../bower_components/bootstrap/dist/css/bootstrap.css">-->
+
+    <script src="../bower_components/jquery/dist/jquery.js"></script>
+    <script src="../bower_components/lodash/lodash.min.js"></script>
+    <script src="../bower_components/graphlib/dist/graphlib.core.js"></script>
+    <script src="../bower_components/d3/d3.js"></script>
+    <script src="../bower_components/dagre/dist/dagre.core.js"></script>
+    <script src="../bower_components/dagre-d3/dist/dagre-d3.core.js"></script>
+    <script src="../bower_components/handlebars/handlebars.min.js"></script>
+
+    <!--<script src="js/gypsy.js"></script>-->
+
+    <style>
+        body {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            margin: 0;
+            padding: 0;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serf;
+        }
+        .stream-node {
+            display: block;
+        }
+        .stream-node div {
+            display: inline-block;
+        }
+
+        .name {
+            margin-left: 5px;
+            margin-right: 5px;
+            font-size: large;
+        }
+        .in, .out {
+            min-width: 25px;
+            font-size: small;
+        }
+        .in {
+            text-align: left;
+        }
+
+        .out {
+            text-align: right;
+        }
+
+        .node rect {
+            stroke: #333;
+            fill: #fff;
+        }
+        .edgePath path {
+            stroke: #333;
+            fill: #333;
+            stroke-width: 1.5px;
+        }
+    </style>
+</head>
+<body>
+<div style="width: 100%; height: 100%; border: 1px solid black">
+<svg width="100%" height="800"><g/></svg>
+</div>
+<script type="application/x-javascript">
+    var schemeUrl = "http://localhost:8081/graph";
+    var stateUrl = "http://localhost:8081/graph-state";
+    var svg = d3.select("svg"),
+            inner = svg.select("g");
+    var render = new dagreD3.render();
+    var zoom = d3.behavior.zoom().on("zoom", function() {
+        inner.attr("transform", "translate(" + d3.event.translate + ")" +
+        "scale(" + d3.event.scale + ")");
+    });
+    svg.call(zoom);
+
+
+    function renderGraph(scheme, state) {
+        function buildGraph(scheme, state) {
+            var g = new dagreD3.graphlib.Graph().setGraph({
+                nodesep: 200,
+                ranksep: 20,
+                rankdir: "UD",
+                marginx: 10,
+                marginy: 10
+            });
+            _.forEach(scheme.nodes, function(x) {
+                var st = state[x.id];
+
+                console.log("id - " + x.id + ". state - " + state[x.id]);
+                var html = "<div class='stream-node'>";
+                if(_.has(st, "buffer")) {
+                    html += "<div class='in'>"+ _.result(st, "buffer") +"</div>";
+                }
+                html += "<div class='name'>"+ x.name +"</div>";
+                if(_.has(st, "demand")) {
+                    html += "<div class='out'>" + _.result(st, "demand") + "</div>";
+                }
+                html += "</div>";
+                g.setNode(x.id,
+                        {
+                            labelType: "html",
+                            label: html,
+                            rx: 5,
+                            ry: 5
+                        }
+                )}
+            );
+            _.forEach(scheme.edges, function(x) {
+                g.setEdge(x.from, x.to, {label: ""});
+            });
+            return g;
+        }
+        var g = buildGraph(scheme, state);
+        render(inner, g);
+    }
+
+    $(document).ready(function() {
+        $.ajax({url: schemeUrl}).done(function(data) {
+            $.ajax({url: stateUrl}).done(function(state) {
+                renderGraph(eval(data), eval(state).state);
+            });
+        });
+    });
+
+</script>
+</body>
+</html>
