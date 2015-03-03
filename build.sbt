@@ -2,7 +2,7 @@ scalaVersion := "2.11.5"
 
 libraryDependencies ++= Seq(
   "com.typesafe" % "config" % "1.2.1"
-  ,"com.typesafe.akka" %% "akka-stream-experimental" % "1.0-M3"
+  ,"com.typesafe.akka" %% "akka-stream-experimental" % "1.0-M4"
   ,"com.typesafe.akka" %% "akka-slf4j" % "2.3.9"
   ,"org.slf4j" % "jul-to-slf4j" % "1.7.7"
   ,"me.moocar" % "logback-gelf" % "0.12"
