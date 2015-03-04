@@ -118,9 +118,9 @@
 
     $(document).ready(function() {
         $.ajax({url: schemeUrl}).done(function(data) {
-            $.ajax({url: stateUrl}).done(function(state) {
-                renderGraph(eval(data), eval(state).state);
-            });
+//            $.ajax({url: stateUrl}).done(function(state) {
+                renderGraph(eval(data), {});
+//            });
         });
     });
 
