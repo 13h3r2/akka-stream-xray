@@ -9,31 +9,25 @@ object Test extends App {
   implicit val as = ActorSystem()
   val xray = XRay()
   implicit val m = xray.materializer()
-////  implicit val m = ActorFlowMaterializer()
-//
-//  val flow = Flow() { implicit b =>
-//    import akka.stream.scaladsl.FlowGraphImplicits._
-//    val in = UndefinedSource[Int]
-//    val out = UndefinedSink[Int]
-////    val bcast = Broadcast[Int]
-////    val merge = Merge[Int]
-//
-//    in ~> Flow[Int].map(x => x) ~> out
-////    in ~> bcast ~> Flow[Int].map(x => x) ~> merge ~> out
-////          bcast ~> Flow[Int].map(x => x) ~> merge
-////          bcast ~> Flow[Int].map(x => x) ~> merge
-////          bcast ~> Flow[Int].map(x => x) ~> merge
-//    (in, out)
-//  }
 
+  val flow = Flow() { implicit b =>
+    import FlowGraph.Implicits._
+    val bcast = b.add(Broadcast[Int](2))
+    val merge = b.add(Merge[String](2))
 
-//  Source(1 to 10 map { x =>
-//      Source((1 to 1000).to[scala.collection.immutable.Seq])
-//    })
-    Source((1 to 1000).to[scala.collection.immutable.Seq])
-    //    .flatten(FlattenStrategy.concat)
-      .map{ x => Thread.sleep(1000); x }
-      .filter { x => println(x); true }
-      .to(Sink.ignore)
-      .run()
+    bcast ~> Flow[Int].filter(_ % 2 == 0).map(x => s"filtered-$x") ~> merge
+    bcast ~> Flow[Int].map(x => s"mapped - $x") ~> merge
+
+    bcast.in -> merge.out
+  }
+
+  Source(1 to 100 map { x =>
+    Source((1 to 10).to[scala.collection.immutable.Seq])
+  })
+    .flatten(FlattenStrategy.concat)
+    .map{ x => Thread.sleep(1000); x }
+    .via(flow)
+    .filter { x => println(x); true }
+    .to(Sink.ignore())
+    .run()
 }

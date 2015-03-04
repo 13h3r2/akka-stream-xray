@@ -2,25 +2,21 @@ package akka.stream
 
 import akka.actor.Actor
 import akka.event.LoggingReceive
-import akka.stream.impl.{SinkModule, SourceModule}
 import akka.stream.impl.StreamLayout.Module
-import akka.stream.scaladsl._
-import org.reactivestreams.{Publisher, Subscriber}
+import akka.stream.impl.{SinkModule, SourceModule}
 
 
 class XMeter() extends Actor {
   import akka.stream.XMeter._
   var modules: Seq[Module] = Nil
-  var toplevel: Module = _
+  var toplevel: Seq[Module] = Nil
 
   var ids = Map[Any, String]()
-  def id(obj: Any) = {
-    ids.getOrElse(obj, {
+  def id(obj: Any) = ids.getOrElse(obj, {
       val nextId = ids.size.toString
       ids += (obj -> nextId)
       nextId
     })
-  }
 
   def moduleName(module: Module): String = module match {
     case x: SourceModule[_, _] => x.shape.outlet.toString
@@ -30,7 +26,7 @@ class XMeter() extends Actor {
 
   override def receive = LoggingReceive {
     case m: Module => modules :+= m
-    case x: XModule => toplevel = x.module
+    case x: XModule => toplevel :+= x.module
     case QueryGraph =>
       val flowNodes = modules.map { m =>
         Node(id(m), moduleName(m))
@@ -39,10 +35,10 @@ class XMeter() extends Actor {
       val inPorts = modules.flatMap { m => m.inPorts.map(_ -> m) }.toMap
       val outPorts = modules.flatMap { m => m.outPorts.map(_ -> m) }.toMap
 
-      val edges = toplevel.downstreams.map {
+      val edges = toplevel.flatMap(_.downstreams.map {
         case (out, in) =>
           Edge(id(outPorts(out)), id(inPorts(in)))
-      }.toSeq
+      }).toSeq
       sender() ! GraphShape(flowNodes, edges)
   }
 }
