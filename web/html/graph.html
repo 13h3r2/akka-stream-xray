@@ -87,8 +87,6 @@
             });
             _.forEach(scheme.nodes, function(x) {
                 var st = state[x.id];
-
-                console.log("id - " + x.id + ". state - " + state[x.id]);
                 var html = "<div class='stream-node'>";
                 if(_.has(st, "buffer")) {
                     html += "<div class='in'>"+ _.result(st, "buffer") +"</div>";

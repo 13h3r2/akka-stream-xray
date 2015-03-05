@@ -7,8 +7,11 @@ import akka.stream.impl.{SinkModule, SourceModule}
 
 
 class XMeter() extends Actor {
+
+  case class ModuleInfo(module: Module, name: String)
+
   import akka.stream.XMeter._
-  var modules: Seq[Module] = Nil
+  var modules: Seq[ModuleInfo] = Nil
   var toplevel: Seq[Module] = Nil
 
   var ids = Map[Any, String]()
@@ -25,15 +28,15 @@ class XMeter() extends Actor {
   }
 
   override def receive = LoggingReceive {
-    case m: Module => modules :+= m
+    case (name: Option[String], m: Module) => modules :+= ModuleInfo(m, name.getOrElse(moduleName(m)))
     case x: XModule => toplevel :+= x.module
     case QueryGraph =>
       val flowNodes = modules.map { m =>
-        Node(id(m), moduleName(m))
+        Node(id(m), m.name)
       }
 
-      val inPorts = modules.flatMap { m => m.inPorts.map(_ -> m) }.toMap
-      val outPorts = modules.flatMap { m => m.outPorts.map(_ -> m) }.toMap
+      val inPorts = modules.flatMap { m => m.module.inPorts.map(_ -> m) }.toMap
+      val outPorts = modules.flatMap { m => m.module.outPorts.map(_ -> m) }.toMap
 
       val edges = toplevel.flatMap(_.downstreams.map {
         case (out, in) =>

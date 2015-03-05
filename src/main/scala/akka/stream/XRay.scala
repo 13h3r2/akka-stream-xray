@@ -16,6 +16,7 @@ import akka.stream.scaladsl.OperationAttributes
 import akka.stream.stage.{Context, PushStage}
 import org.reactivestreams.{Processor, Publisher, Subscriber}
 
+import scala.collection.immutable.Stack
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
 
@@ -92,7 +93,7 @@ class XActorFlowMaterializerImpl(override val settings: ActorFlowMaterializerSet
     runnableFlow.module.validate()
 
     val session = new MaterializerSession(runnableFlow.module) {
-      var nestLevel = 0
+      var depth = Stack[Option[String]]()
       private val flowName = createFlowName()
       private var nextId = 0
       private def stageName(attr: OperationAttributes): String = {
@@ -102,7 +103,7 @@ class XActorFlowMaterializerImpl(override val settings: ActorFlowMaterializerSet
       }
 
       override protected def materializeAtomic(atomic: Module, effectiveAttributes: OperationAttributes): Any = {
-        meter ! atomic
+        meter ! (effectiveAttributes.nameLifted, atomic)
         atomic match {
           case sink: SinkModule[_, _] ⇒
             val (sub, mat) = sink.create(XActorFlowMaterializerImpl.this, stageName(effectiveAttributes))
@@ -203,12 +204,10 @@ class XActorFlowMaterializerImpl(override val settings: ActorFlowMaterializerSet
       }
 
       override protected def materializeModule(module: Module, effectiveAttributes: OperationAttributes) = {
-        nestLevel += 1
+        depth = depth.push(module.attributes.nameLifted)
         val result = super.materializeModule(module, effectiveAttributes)
-        nestLevel -=1
-        if(nestLevel == 0) {
-          meter ! XModule(module)
-        }
+        depth = depth.pop
+        if(depth.isEmpty) meter ! XModule(module)
         result
       }
     }
