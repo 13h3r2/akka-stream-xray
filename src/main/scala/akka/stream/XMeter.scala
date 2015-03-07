@@ -30,6 +30,9 @@ class XMeter() extends Actor {
   override def receive = LoggingReceive {
     case (name: Option[String], m: Module) => modules :+= ModuleInfo(m, name.getOrElse(moduleName(m)))
     case x: XModule => toplevel :+= x.module
+    case XSinkFinished(module) =>
+
+      println(s"FINISHED = $module")
     case QueryGraph =>
       val flowNodes = modules.map { m =>
         Node(id(m), m.name)
@@ -51,7 +54,7 @@ object XMeter {
   case object QueryGraphState
 }
 
-//case class XFlowFinished(flow: XFlow)
+case class XSinkFinished(module: Module)
 case class XModule(module: Module)
 
 case class Node(id: String, name: String)

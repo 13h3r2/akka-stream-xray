@@ -14,7 +14,7 @@ import akka.stream.impl.StreamLayout.Module
 import akka.stream.impl._
 import akka.stream.scaladsl.OperationAttributes
 import akka.stream.stage.{Context, PushStage}
-import org.reactivestreams.{Processor, Publisher, Subscriber}
+import org.reactivestreams.{Subscription, Processor, Publisher, Subscriber}
 
 import scala.collection.immutable.Stack
 import scala.concurrent.{Await, ExecutionContextExecutor}
@@ -46,28 +46,29 @@ class XRay()(implicit system: ActorSystem) {
   }
 }
 
-//class NotificationStage(meter: ActorRef, xf: XFlow) extends PushStage[Any, Any] {
-//  override def onPush(elem: Any, ctx: Context[Any]) = ctx.push(elem)
-//
-//  override def onUpstreamFinish(ctx: Context[Any]) = {
-//    meter ! XFlowFinished(xf)
-//    super.onUpstreamFinish(ctx)
-//  }
-//
-//  override def onDownstreamFinish(ctx: Context[Any]) = {
-//    meter ! XFlowFinished(xf)
-//    super.onDownstreamFinish(ctx)
-//  }
-//
-//  override def onUpstreamFailure(cause: Throwable, ctx: Context[Any]) = {
-//    meter ! XFlowFinished(xf)
-//    super.onUpstreamFailure(cause, ctx)
-//  }
-//}
-//
-//class XRay private()(implicit system: ActorSystem) {
-//  val meter = system.actorOf(Props[XMeter], "meter")
-//}
+
+class NotificationSubscriber(downstream: Subscriber[Any], meter: ActorRef, module: Module)
+  extends Subscriber[Any]
+{
+  def notifyMeter() = meter ! XSinkFinished(module)
+
+  override def onError(t: Throwable) = {
+    notifyMeter()
+    downstream.onError(t)
+  }
+  override def onSubscribe(s: Subscription) = downstream.onSubscribe(new Subscription {
+    override def cancel() = {
+      notifyMeter()
+      s.cancel()
+    }
+    override def request(n: Long) = s.request(n)
+  })
+  override def onComplete() = {
+    notifyMeter()
+    downstream.onComplete()
+  }
+  override def onNext(t: Any) = downstream.onNext(t)
+}
 
 /**
  * INTERNAL API
@@ -107,8 +108,19 @@ class XActorFlowMaterializerImpl(override val settings: ActorFlowMaterializerSet
         atomic match {
           case sink: SinkModule[_, _] ⇒
             val (sub, mat) = sink.create(XActorFlowMaterializerImpl.this, stageName(effectiveAttributes))
-            assignPort(sink.shape.inlet, sub.asInstanceOf[Subscriber[Any]])
-            mat
+            val (proxiedSub, fixedMat) = sub match {
+              case x: VirtualSubscriber[Any] =>
+                val vp = new VirtualPublisher[Any]() {
+                  override def subscribe(s: Subscriber[_ >: Any]) = {
+                    realPublisher.subscribe(new NotificationSubscriber(s.asInstanceOf[Subscriber[Any]], meter, sink))
+                  }
+                }
+                val vs = new VirtualSubscriber[Any](vp)
+                (vs, vp)
+              case _ => (new NotificationSubscriber(sub.asInstanceOf[Subscriber[Any]], meter, sink), mat)
+            }
+            assignPort(sink.shape.inlet, proxiedSub)
+            fixedMat
           case source: SourceModule[_, _] ⇒
             val (pub, mat) = source.create(XActorFlowMaterializerImpl.this, stageName(effectiveAttributes))
             assignPort(source.shape.outlet, pub.asInstanceOf[Publisher[Any]])
