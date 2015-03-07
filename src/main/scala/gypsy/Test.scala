@@ -22,10 +22,10 @@ object Test extends App {
   }
 
   Source(1 to 100 map { x =>
-    Source((1 to 10).to[scala.collection.immutable.Seq])
+    Source((1 to 1000).to[scala.collection.immutable.Seq])
   })
     .flatten(FlattenStrategy.concat)
-    .map{ x => Thread.sleep(1000); x }
+    .map{ x => Thread.sleep(300); x }
     .via(flow)
     .filter { x => println(x); true }
     .to(Sink.ignore())

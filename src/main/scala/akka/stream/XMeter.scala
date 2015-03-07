@@ -11,7 +11,7 @@ class XMeter() extends Actor {
   case class ModuleInfo(module: Module, name: String)
 
   import akka.stream.XMeter._
-  var modules: Seq[ModuleInfo] = Nil
+  var modules: Set[ModuleInfo] = Set()
   var toplevel: Seq[Module] = Nil
 
   var ids = Map[Any, String]()
@@ -28,11 +28,20 @@ class XMeter() extends Actor {
   }
 
   override def receive = LoggingReceive {
-    case (name: Option[String], m: Module) => modules :+= ModuleInfo(m, name.getOrElse(moduleName(m)))
+    case (name: Option[String], m: Module) => modules += ModuleInfo(m, name.getOrElse(moduleName(m)))
     case x: XModule => toplevel :+= x.module
     case XSinkFinished(module) =>
-
-      println(s"FINISHED = $module")
+      val in2out = toplevel.flatMap(_.connections.map(_.swap)).toMap
+      def remove0(toRemove: Set[ModuleInfo]): Set[ModuleInfo] = {
+        val deadOuts = toRemove.flatMap(_.module.inPorts.map(in2out))
+        val updated = toRemove ++ modules.filter { x =>
+          !x.module.isSink && (x.module.outPorts -- deadOuts).isEmpty
+        }
+        if(toRemove == updated) toRemove
+        else remove0(updated)
+      }
+      val toRemove = modules.find(_.module == module).map(x => remove0(Set(x))).getOrElse(Set())
+      modules --= toRemove
     case QueryGraph =>
       val flowNodes = modules.map { m =>
         Node(id(m), m.name)
@@ -41,10 +50,12 @@ class XMeter() extends Actor {
       val inPorts = modules.flatMap { m => m.module.inPorts.map(_ -> m) }.toMap
       val outPorts = modules.flatMap { m => m.module.outPorts.map(_ -> m) }.toMap
 
-      val edges = toplevel.flatMap(_.downstreams.map {
-        case (out, in) =>
-          Edge(id(outPorts(out)), id(inPorts(in)))
-      }).toSeq
+      val edges = for {
+        module <- toplevel
+        (out, in) <- module.downstreams
+        inport <- inPorts.get(in)
+        outport <- outPorts.get(out)
+      } yield Edge(id(outport), id(inport))
       sender() ! GraphShape(flowNodes, edges)
   }
 }
@@ -59,5 +70,5 @@ case class XModule(module: Module)
 
 case class Node(id: String, name: String)
 case class Edge(from: String, to: String, name: String = "")
-case class GraphShape(nodes: Seq[Node], edges: Seq[Edge])
+case class GraphShape(nodes: Set[Node], edges: Seq[Edge])
 //case class GraphsState(state: Map[String, ActorInterpreterMetrics])
